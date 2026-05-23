@@ -5,8 +5,7 @@ use crate::packed_r_tree::{calc_extent, hilbert_sort, NodeItem, PackedRTree};
 use crate::{Column, ColumnArgs, Header, HeaderArgs, MAGIC_BYTES};
 use flatbuffers::FlatBufferBuilder;
 use geozero::CoordDimensions;
-use std::fs::File;
-use std::io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write};
+use std::io::{BufReader, Read, Seek, SeekFrom, Write, Cursor};
 
 /// FlatGeobuf dataset writer
 ///
@@ -30,7 +29,7 @@ use std::io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write};
 /// # }
 /// ```
 pub struct FgbWriter<'a> {
-    tmpout: BufWriter<File>,
+    tmpout: Cursor<Vec<u8>>,
     fbb: FlatBufferBuilder<'a>,
     header_args: HeaderArgs<'a>,
     columns: Vec<flatbuffers::WIPOffset<Column<'a>>>,
@@ -193,7 +192,7 @@ impl<'a> FgbWriter<'a> {
             dims,
         );
 
-        let tmpout = BufWriter::new(tempfile::tempfile()?);
+        let tmpout = Cursor::new(Vec::<u8>::new());
 
         Ok(FgbWriter {
             tmpout,
@@ -292,8 +291,8 @@ impl<'a> FgbWriter<'a> {
 
         // Copy features from temp file in sort order
         self.tmpout.rewind()?;
-        let unsorted_feature_output = self.tmpout.into_inner().map_err(|e| e.into_error())?;
-        let mut unsorted_feature_reader = BufReader::new(unsorted_feature_output);
+        let unsorted_feature_output = self.tmpout.into_inner();
+        let mut unsorted_feature_reader = BufReader::new(Cursor::new(unsorted_feature_output));
 
         // Clippy generates a false-positive here, needs a block to disable, see
         // https://github.com/rust-lang/rust-clippy/issues/9274
